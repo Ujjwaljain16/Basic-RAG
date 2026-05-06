@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PDFLoader } from "@langchain/community/document_loaders/fs/pdf";
-import { Document } from "@langchain/core/documents";
 import { HuggingFaceInferenceEmbeddings } from "@langchain/community/embeddings/hf";
 import { QdrantVectorStore } from "@langchain/qdrant";
 import { QdrantClient } from "@qdrant/js-client-rest";
 import { detectStructuralBlocks, stripHeadersFooters } from "@/lib/rag/parser";
 import { chunkStructuralNodes } from "@/lib/rag/chunker";
-import { writeFile } from "fs/promises";
-import { join } from "path";
-import { tmpdir } from "os";
 import { extractText, getDocumentProxy } from "unpdf";
 import crypto from "crypto";
 
