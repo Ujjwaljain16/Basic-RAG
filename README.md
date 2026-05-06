@@ -28,7 +28,7 @@ graph TD
     Rewrite -->|New Query| Qdrant
     Qdrant -->|2. Search| Filter[High-Confidence Filter]
     Filter -->|3. Dedupe| Dedup[Fingerprint Dedup]
-    Dedup -->|Top 10 Contexts| LLM[Gemini 1.5 Flash]
+    Dedup -->|Top 10 Contexts| LLM[Gemini 2.5 Flash]
     LLM -->|Grounded Answer| User
 ```
 

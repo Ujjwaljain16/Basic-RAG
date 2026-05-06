@@ -15,9 +15,16 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
-
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    }
+
+    // Server-side check for 4.5MB limit (Vercel Hard Limit)
+    if (file.size > 4.5 * 1024 * 1024) {
+      return NextResponse.json(
+        { error: "File too large. Maximum size is 4.5MB." },
+        { status: 413 }
+      );
     }
 
     const allowedTypes = ["application/pdf", "text/plain"];
@@ -32,7 +39,13 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(bytes);
     const ext = file.type === "application/pdf" ? ".pdf" : ".txt";
     const tmpPath = join(tmpdir(), `upload-${Date.now()}${ext}`);
-    await writeFile(tmpPath, buffer);
+    
+    try {
+      await writeFile(tmpPath, buffer);
+    } catch (e) {
+      console.error("[ingest] Write failed:", e);
+      return NextResponse.json({ error: "Failed to write temporary file" }, { status: 500 });
+    }
 
     const docId = crypto
       .createHash("sha256")
@@ -41,12 +54,22 @@ export async function POST(req: NextRequest) {
       .slice(0, 16);
 
     let rawDocs: Document[] = [];
-    if (file.type === "application/pdf") {
-      const loader = new PDFLoader(tmpPath, { splitPages: true });
-      rawDocs = await loader.load();
-    } else {
-      const text = buffer.toString("utf-8");
-      rawDocs = [new Document({ pageContent: text, metadata: { source: tmpPath } })];
+    try {
+      if (file.type === "application/pdf") {
+        console.log("[ingest] Parsing PDF with PDFLoader...");
+        const loader = new PDFLoader(tmpPath, { splitPages: true });
+        rawDocs = await loader.load();
+      } else {
+        const text = buffer.toString("utf-8");
+        rawDocs = [new Document({ pageContent: text, metadata: { source: tmpPath } })];
+      }
+    } catch (err) {
+      console.error("[ingest] PDF/Text parsing error:", err);
+      const msg = err instanceof Error ? err.message : "Failed to parse document";
+      return NextResponse.json(
+        { error: `Parsing failed: ${msg}. If this is a PDF, it might be corrupted or incompatible with the current parser.` },
+        { status: 500 }
+      );
     }
 
     const pages = rawDocs.map((doc, i) => ({

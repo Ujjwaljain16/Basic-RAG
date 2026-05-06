@@ -31,18 +31,50 @@ export default function Home() {
   }, [messages, isLoading]);
 
   const handleUpload = async (file: File) => {
+    // Vercel limit is 4.5MB for Serverless Functions body
+    const MAX_SIZE = 4.5 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      alert(`File too large (${(file.size / (1024 * 1024)).toFixed(2)}MB). Maximum size allowed is 4.5MB due to Vercel Hobby tier limits.`);
+      return;
+    }
+
     const fd = new FormData();
     fd.append("file", file);
-    const res  = await fetch("/api/ingest", { method: "POST", body: fd });
-    const data = await res.json();
-    if (data.success) {
-      setDocId(data.docId);
-      setFileName(data.fileName);
-      setChunkCount(data.totalChunks ?? null);
-      setMessages([]);
-      setSources([]);
-    } else {
-      alert("Error: " + data.error);
+    
+    try {
+      const res = await fetch("/api/ingest", { method: "POST", body: fd });
+      
+      if (!res.ok) {
+        let errorMsg = `Server error: ${res.status} ${res.statusText}`;
+        try {
+          const data = await res.json();
+          errorMsg = data.error || errorMsg;
+        } catch (e) {
+          // If not JSON, it's likely a Vercel 413 or 500 HTML/text page
+          const text = await res.text();
+          if (text.includes("Payload Too Large") || res.status === 413) {
+            errorMsg = "File is too large for Vercel's 4.5MB limit.";
+          } else {
+            errorMsg = text.slice(0, 100) || errorMsg;
+          }
+        }
+        alert("Error: " + errorMsg);
+        return;
+      }
+
+      const data = await res.json();
+      if (data.success) {
+        setDocId(data.docId);
+        setFileName(data.fileName);
+        setChunkCount(data.totalChunks ?? null);
+        setMessages([]);
+        setSources([]);
+      } else {
+        alert("Error: " + data.error);
+      }
+    } catch (err) {
+      console.error("Upload failed:", err);
+      alert("Network error: Failed to connect to the server.");
     }
   };
 
