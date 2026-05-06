@@ -56,17 +56,13 @@ export async function POST(req: NextRequest) {
       if (file.type === "application/pdf") {
         console.log("[ingest] Parsing PDF with unpdf...");
         const pdf = await getDocumentProxy(new Uint8Array(bytes));
-        const result = await extractText(pdf, { mergePages: true });
+        const result = await extractText(pdf, { mergePages: false });
         
-        // Handle unpdf output (result can be string or object with pages)
-        if (typeof result === "string") {
-          fullText = result;
-          pages = [{ text: result, pageNumber: 1 }];
-        } else {
-          fullText = result.text;
-          // Map pages if unpdf provides them, otherwise fallback to single block
-          pages = result.pages?.map((p, i) => ({ text: p, pageNumber: i + 1 })) || [{ text: fullText, pageNumber: 1 }];
-        }
+        fullText = result.text.join("\n\n");
+        pages = result.text.map((text: string, i: number) => ({
+          text,
+          pageNumber: i + 1,
+        }));
       } else {
         console.log("[ingest] Processing text file...");
         fullText = buffer.toString("utf-8");
