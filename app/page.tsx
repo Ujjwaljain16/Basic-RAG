@@ -49,7 +49,7 @@ export default function Home() {
         try {
           const data = await res.json();
           errorMsg = data.error || errorMsg;
-        } catch (e) {
+        } catch (_e) {
           // If not JSON, it's likely a Vercel 413 or 500 HTML/text page
           const text = await res.text();
           if (text.includes("Payload Too Large") || res.status === 413) {
