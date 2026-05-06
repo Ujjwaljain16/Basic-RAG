@@ -9,17 +9,17 @@ import { chunkStructuralNodes } from "@/lib/rag/chunker";
 import { writeFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
+import { extractText, getDocumentProxy } from "unpdf";
 import crypto from "crypto";
-import "pdf-parse"; // Force Vercel to bundle this dependency
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const file = formData.get("file") as File;
-    if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    const file = formData.get("file");
+    if (!file || !(file instanceof File)) {
+      return NextResponse.json({ error: "No valid file provided" }, { status: 400 });
     }
 
     // Server-side check for 4.5MB limit (Vercel Hard Limit)
@@ -38,47 +38,47 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    console.log(`[ingest] Processing file: ${file.name} (${file.size} bytes)`);
+
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const ext = file.type === "application/pdf" ? ".pdf" : ".txt";
-    const tmpPath = join(tmpdir(), `upload-${Date.now()}${ext}`);
     
-    try {
-      await writeFile(tmpPath, buffer);
-    } catch (e) {
-      console.error("[ingest] Write failed:", e);
-      return NextResponse.json({ error: "Failed to write temporary file" }, { status: 500 });
-    }
-
     const docId = crypto
       .createHash("sha256")
       .update(buffer)
       .digest("hex")
       .slice(0, 16);
 
-    let rawDocs: Document[] = [];
+    let fullText = "";
+    let pages: { text: string; pageNumber: number }[] = [];
+
     try {
       if (file.type === "application/pdf") {
-        console.log("[ingest] Parsing PDF with PDFLoader...");
-        const loader = new PDFLoader(tmpPath, { splitPages: true });
-        rawDocs = await loader.load();
+        console.log("[ingest] Parsing PDF with unpdf...");
+        const pdf = await getDocumentProxy(new Uint8Array(bytes));
+        const result = await extractText(pdf, { mergePages: true });
+        
+        // Handle unpdf output (result can be string or object with pages)
+        if (typeof result === "string") {
+          fullText = result;
+          pages = [{ text: result, pageNumber: 1 }];
+        } else {
+          fullText = result.text;
+          // Map pages if unpdf provides them, otherwise fallback to single block
+          pages = result.pages?.map((p, i) => ({ text: p, pageNumber: i + 1 })) || [{ text: fullText, pageNumber: 1 }];
+        }
       } else {
-        const text = buffer.toString("utf-8");
-        rawDocs = [new Document({ pageContent: text, metadata: { source: tmpPath } })];
+        console.log("[ingest] Processing text file...");
+        fullText = buffer.toString("utf-8");
+        pages = [{ text: fullText, pageNumber: 1 }];
       }
     } catch (err) {
-      console.error("[ingest] PDF/Text parsing error:", err);
-      const msg = err instanceof Error ? err.message : "Failed to parse document";
+      console.error("INGEST PARSING ERROR:", err);
       return NextResponse.json(
-        { error: `Parsing failed: ${msg}. If this is a PDF, it might be corrupted or incompatible with the current parser.` },
+        { error: `Parsing failed: ${err instanceof Error ? err.message : String(err)}` },
         { status: 500 }
       );
     }
-
-    const pages = rawDocs.map((doc, i) => ({
-      text: doc.pageContent,
-      pageNumber: (doc.metadata.loc?.pageNumber as number) || i + 1,
-    }));
 
     const cleanText = stripHeadersFooters(pages);
     const nodes = detectStructuralBlocks(cleanText);
