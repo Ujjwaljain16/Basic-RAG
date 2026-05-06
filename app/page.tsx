@@ -8,11 +8,11 @@ import SourceCard, { Source } from "@/components/SourceCard";
 type Message = { role: "user" | "assistant"; content: string };
 
 const SUGGESTED = [
-  "What is WAL (Write-Ahead Log)?",
-  "Explain B-Trees and their structure",
-  "What is an LSM Tree?",
-  "How does compaction work?",
-  "What is MMAP in databases?",
+  "What are the main topics covered in this document?",
+  "Summarize the key takeaways from this text.",
+  "Are there any specific definitions or formulas I should know?",
+  "Explain the most complex concept mentioned here.",
+  "Give me a high-level overview of this document.",
 ];
 
 export default function Home() {
