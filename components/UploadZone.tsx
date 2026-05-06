@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 
 interface UploadZoneProps {
   onUpload: (file: File) => Promise<void>;
@@ -29,7 +29,6 @@ export default function UploadZone({ onUpload, isUploaded, fileName, chunkCount 
   if (isUploaded && fileName) {
     return (
       <div className="flex flex-col gap-4 animate-fade-up">
-        {/* Success state */}
         <div style={{
           background: "linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.05))",
           border: "1px solid rgba(99,102,241,0.25)",
@@ -64,8 +63,6 @@ export default function UploadZone({ onUpload, isUploaded, fileName, chunkCount 
             </span>
           </div>
         </div>
-
-        {/* Replace doc */}
         <button
           onClick={() => fileInputRef.current?.click()}
           style={{

@@ -4,7 +4,8 @@ import { Document } from "@langchain/core/documents";
 import { HuggingFaceInferenceEmbeddings } from "@langchain/community/embeddings/hf";
 import { QdrantVectorStore } from "@langchain/qdrant";
 import { QdrantClient } from "@qdrant/js-client-rest";
-import { chunkDocuments } from "@/lib/rag/chunker";
+import { detectStructuralBlocks, stripHeadersFooters } from "@/lib/rag/parser";
+import { chunkStructuralNodes } from "@/lib/rag/chunker";
 import { writeFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -48,51 +49,57 @@ export async function POST(req: NextRequest) {
       rawDocs = [new Document({ pageContent: text, metadata: { source: tmpPath } })];
     }
 
-    const taggedDocs = rawDocs.map((doc: Document) => ({
-      ...doc,
-      metadata: {
-        ...doc.metadata,
-        docId,
-        fileName: file.name,
-        ingestedAt: new Date().toISOString(),
-      },
+    const pages = rawDocs.map((doc, i) => ({
+      text: doc.pageContent,
+      pageNumber: (doc.metadata.loc?.pageNumber as number) || i + 1,
     }));
 
-    const chunks = await chunkDocuments(taggedDocs);
+    const cleanText = stripHeadersFooters(pages);
+    const nodes = detectStructuralBlocks(cleanText);
+    const chunks = await chunkStructuralNodes(nodes, docId);
 
     const embeddings = new HuggingFaceInferenceEmbeddings({
       apiKey: process.env.HUGGINGFACE_API_KEY,
       model: "sentence-transformers/all-MiniLM-L6-v2",
     });
 
-    await QdrantVectorStore.fromDocuments(chunks, embeddings, {
+    const vectorStore = new QdrantVectorStore(embeddings, {
       url: process.env.QDRANT_URL!,
       apiKey: process.env.QDRANT_API_KEY,
       collectionName: process.env.COLLECTION_NAME!,
     });
+
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+      const batch = chunks.slice(i, i + BATCH_SIZE);
+      await vectorStore.addDocuments(batch);
+    }
 
     const client = new QdrantClient({
       url: process.env.QDRANT_URL!,
       apiKey: process.env.QDRANT_API_KEY,
     });
     
-    await client.createPayloadIndex(process.env.COLLECTION_NAME!, {
-      field_name: "metadata.docId",
-      field_schema: "keyword",
-    });
+    await Promise.all([
+      client.createPayloadIndex(process.env.COLLECTION_NAME!, {
+        field_name: "metadata.documentId",
+        field_schema: "keyword",
+      }),
+      client.createPayloadIndex(process.env.COLLECTION_NAME!, {
+        field_name: "metadata.nodeType",
+        field_schema: "keyword",
+      })
+    ]);
 
     return NextResponse.json({
       success: true,
       docId,
       fileName: file.name,
       totalChunks: chunks.length,
-      message: `Indexed ${chunks.length} chunks from "${file.name}"`,
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error("[ingest] error:", err);
-    return NextResponse.json(
-      { error: err.message ?? "Ingestion failed" },
-      { status: 500 }
-    );
+    const msg = err instanceof Error ? err.message : "Ingestion failed";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

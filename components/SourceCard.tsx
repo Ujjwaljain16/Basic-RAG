@@ -2,6 +2,7 @@ export interface Source {
   page: number | string;
   file: string;
   excerpt: string;
+  nodeType?: string;
 }
 
 export default function SourceCard({ source, index }: { source: Source; index: number }) {
@@ -40,13 +41,13 @@ export default function SourceCard({ source, index }: { source: Source; index: n
           {index}
         </span>
         <span style={{ fontSize: "11px", color: "#9090a8", fontWeight: 500 }}>
-          Page {source.page}
+          {source.nodeType ? `${source.nodeType.toUpperCase()} · ` : ""}Page {source.page}
         </span>
         <span style={{ color: "#2d2d3a", fontSize: "11px" }}>·</span>
         <span style={{
           fontSize: "11px", color: "#6b6b80",
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          maxWidth: "130px",
+          maxWidth: "180px",
         }} title={source.file}>
           {source.file}
         </span>
