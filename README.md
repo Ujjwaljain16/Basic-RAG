@@ -57,6 +57,14 @@ Duplicate chunks from multiple uploads are eliminated at runtime using a text fi
 - **Styling**: Vanilla CSS (Global Variables & Modern Layouts)
 
 ---
+## Screenshots
+<img width="1919" height="1034" alt="image" src="https://github.com/user-attachments/assets/fb629e39-963b-4d80-9031-5dad5478ef9e" />
+<img width="1919" height="1025" alt="image" src="https://github.com/user-attachments/assets/5bdf3c24-4f18-4a03-890f-6a02504f8666" />
+<img width="1919" height="1023" alt="image" src="https://github.com/user-attachments/assets/71683526-7c8f-47b2-a052-b7a69685cf0b" />
+
+---
+
+
 
 ## 🚀 Getting Started
 
