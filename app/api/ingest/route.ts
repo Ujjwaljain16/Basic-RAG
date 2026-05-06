@@ -10,6 +10,9 @@ import { writeFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import crypto from "crypto";
+import "pdf-parse"; // Force Vercel to bundle this dependency
+
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
