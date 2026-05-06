@@ -1,15 +1,15 @@
 # NotebookRAG
 
-A modern Retrieval-Augmented Generation (RAG) application inspired by Google NotebookLM. This project allows users to upload technical documents and engage in a grounded conversation where every answer is strictly backed by source evidence from the document.
+A production-hardened Retrieval-Augmented Generation (RAG) application optimized for speed and accuracy within free-tier constraints. Inspired by Google NotebookLM, this project transforms academic textbooks into interactive, grounded knowledge bases.
 
 ## 🌟 Features
 
-- 📄 **Advanced Document Ingestion**: Supports PDF and plain text with automated header/footer cleaning.
-- 🧩 **Structure-Aware Chunking**: Specialized strategy for academic CS textbooks that preserves Theorems, Proofs, and Code Blocks.
-- 🚀 **Multi-Stage Retrieval**: Two-stage retrieval pipeline using Qdrant vector search followed by Gemini-based semantic reranking.
-- 💬 **Grounded Chat**: Conversational interface with strict anti-hallucination guardrails.
-- 📑 **Precision Citations**: Detailed source cards showing `Section > Theorem > Page` for maximum traceability.
-- 🎨 **Premium UI**: Modern, dark-mode split-panel interface designed for deep focus.
+- 📄 **Structural Document Ingestion**: Advanced PDF parsing that strips headers/footers and identifies structural blocks (Chapters, Sections, Theorems).
+- 🧩 **Atomic Chunking**: Specialized strategy for textbooks that preserves semantic units like Proofs and Algorithms without splitting them mid-logic.
+- ⚡ **High-Performance Retrieval**: Replaced heavyweight LLM reranking with a low-latency pipeline (Top-40 Dense Search + Score-based Hygiene) for near-instant responses.
+- 🧠 **Conversational Intelligence**: Gated query rewriting transforms follow-up questions into standalone technical queries only when necessary, saving API quota.
+- 🛡️ **Production Resilience**: Robust 503 error handling for Gemini rate limits and automated deduplication of identical document chunks.
+- 🎨 **Premium UI**: Modern, dark-mode interface with smooth animations and responsive side-panels.
 
 ---
 
@@ -24,36 +24,37 @@ graph TD
     HF -->|4. Index| Qdrant[(Qdrant Vector DB)]
     
     User -->|Ask Question| Chat[API Chat Route]
-    Chat -->|1. Vector Search| Qdrant
-    Qdrant -->|Top 15 Chunks| Rerank[Gemini Semantic Reranker]
-    Rerank -->|Top 5 Chunks| LLM[Gemini 1.5 Flash]
+    Chat -->|1. Rewrite| Rewrite{Gated Rewriter}
+    Rewrite -->|New Query| Qdrant
+    Qdrant -->|2. Search| Filter[High-Confidence Filter]
+    Filter -->|3. Dedupe| Dedup[Fingerprint Dedup]
+    Dedup -->|Top 10 Contexts| LLM[Gemini 1.5 Flash]
     LLM -->|Grounded Answer| User
 ```
 
 ---
 
-## 🧠 Optimized Chunking Strategy
+## 🧠 Production Optimizations
 
-### The Problem: Naive Splitting
-Standard RAG systems use fixed-size windows (e.g., 500 characters) to split text. In academic textbooks, this is problematic: a formal **Theorem** might be cut in half, or a **Proof** might lose its concluding logic, leading to incorrect retrieval and fragmented answers.
+### 1. Latency-First Retrieval
+Heavyweight reranking (which cost ~10s per query) has been replaced with a **Candidate Hygiene** layer. We retrieve a larger candidate pool (Top 40) and apply strict rule-based filtering (confidence > 0.2, length > 150 chars) to eliminate noise like Table of Contents entries.
 
-### Our Solution: Structure-Aware Atomic Chunking
-This project implements a specialized strategy for CS textbooks:
-1. **Structural Identification**: The parser detects spans for `Chapter`, `Section`, `Theorem`, `Lemma`, `Proof`, and `Algorithm`.
-2. **Atomic Preservation**: Blocks marked as *Atomic* (like Theorems or Code Blocks) are preserved as single units whenever possible.
-3. **Guarded Overflow**: If an atomic block exceeds the token limit, it is split only at sentence or paragraph boundaries to preserve semantic coherence.
-4. **Recursive Refinement**: Standard paragraphs are split using a 512-token target with a 100-token overlap to maintain local context.
+### 2. Gated Query Rewriting
+To handle conversational context (like "Explain it more") without wasting API credits, the system uses a heuristic gate. It only triggers the LLM-based query rewriter if pronouns or short queries are detected, otherwise passing the original query directly to vector search.
+
+### 3. Context Deduplication
+Duplicate chunks from multiple uploads are eliminated at runtime using a text fingerprinting mechanism (hashing the first 100 characters), ensuring the LLM context window is used exclusively for unique evidence.
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: Next.js 14, React, Tailwind CSS
+- **Frontend**: Next.js 14 (App Router), React
 - **Orchestration**: LangChain.js
-- **Vector Database**: Qdrant Cloud
-- **LLM**: Google Gemini 1.5 Flash
-- **Embeddings**: HuggingFace (`all-MiniLM-L6-v2`)
-- **Styling**: Vanilla CSS
+- **Vector Database**: Qdrant Cloud (with Payload Indexing)
+- **LLM**: Google Gemini 2.5 Flash
+- **Embeddings**: HuggingFace Inference API (`all-MiniLM-L6-v2`)
+- **Styling**: Vanilla CSS (Global Variables & Modern Layouts)
 
 ---
 
@@ -61,9 +62,9 @@ This project implements a specialized strategy for CS textbooks:
 
 ### Prerequisites
 - Node.js 18+
-- Gemini API Key
-- Qdrant Cloud Cluster (or Local Docker)
-- HuggingFace API Key
+- [Google Gemini API Key](https://aistudio.google.com/)
+- [Qdrant Cloud API Key & URL](https://cloud.qdrant.io/)
+- [HuggingFace API Key](https://huggingface.co/settings/tokens)
 
 ### Installation
 
@@ -80,8 +81,8 @@ This project implements a specialized strategy for CS textbooks:
    GOOGLE_API_KEY=your_key
    QDRANT_URL=your_url
    QDRANT_API_KEY=your_key
+   COLLECTION_NAME=notebooklm_rag_prod
    HUGGINGFACE_API_KEY=your_key
-   COLLECTION_NAME=notebooklm_rag_v3
    ```
 
 3. **Run Development Server**
@@ -91,13 +92,5 @@ This project implements a specialized strategy for CS textbooks:
 
 ---
 
-## 📊 Evaluation & Metrics
-
-The system is evaluated qualitatively and through retrieval-focused benchmarks focusing on:
-- **Recall@K**: Ensuring the most relevant theorems and definitions appear in the top retrieval results.
-- **Faithfulness**: Verifying that the LLM response is derived exclusively from the retrieved document context.
-- **Citation Accuracy**: Ensuring that every claim in the chat maps correctly to the specific `Section` and `Page`.
-
----
 **Author**: Ujjwal Jain  
 **Project**: NotebookRAG (Basic-RAG)
