@@ -35,8 +35,8 @@ export async function chunkStructuralNodes(
   documentId: string
 ): Promise<Document[]> {
   const splitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 1024,
-    chunkOverlap: 200,
+    chunkSize: 400,
+    chunkOverlap: 50,
     separators: ["\n\n", "\n", ". ", " ", ""],
   });
 
@@ -46,7 +46,10 @@ export async function chunkStructuralNodes(
     if (node.isAtomic && node.content.length <= MAX_ATOMIC_TOKENS) {
       chunks.push({
         pageContent: node.content,
-        metadata: createMetadata(node, documentId, 0, node.content.length, false),
+        metadata: {
+          ...createMetadata(node, documentId, 0, node.content.length, false),
+          parentContent: node.content,
+        },
       });
     } else {
       const subDocs = await splitter.splitDocuments([
@@ -61,6 +64,7 @@ export async function chunkStructuralNodes(
           metadata: {
             ...createMetadata(node, documentId, index, doc.pageContent.length, false),
             atomicGroupId,
+            parentContent: node.content,
           },
         });
       });
