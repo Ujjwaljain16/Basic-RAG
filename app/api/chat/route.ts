@@ -47,11 +47,11 @@ JSON Array:`;
     try {
       const subqueryRes = await llm.invoke(subqueryPrompt);
       const content = (subqueryRes.content as string).trim();
-      const match = content.match(/\[.*\]/s);
+      const match = content.match(/\[[\s\S]*\]/);
       if (match) {
         const parsed = JSON.parse(match[0]);
         if (Array.isArray(parsed)) {
-          queries = [...new Set([currentMessage, ...parsed])].slice(0, 3);
+          queries = Array.from(new Set([currentMessage, ...parsed])).slice(0, 3);
         }
       }
     } catch (err) {
